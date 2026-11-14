@@ -6,7 +6,7 @@ import numpy
 def moveTo(destinationPos, imageTag):
     
     # Speed at which the image moves
-    SPEED = 3
+    SPEED = 1
 
     imgPos = dpg.get_item_pos(imageTag)
     length = [numpy.abs(destinationPos[0] - imgPos[0]), numpy.abs(destinationPos[1] - imgPos[1])]
@@ -35,24 +35,28 @@ dpg.create_context()
 dpg.create_viewport(title="Hello, World!", width=1440, height=900)
 
 width, height, channels, data = dpg.load_image("mona lisa 4x4 puzzle/piece1.png")
+width, height, channels, data = dpg.load_image("mona lisa 4x4 puzzle/piece2.png")
+
+
 SCALER = 1
 with dpg.texture_registry():
     dpg.add_static_texture(width=width * SCALER, height=height * SCALER, default_value=data, tag="p1")
+    dpg.add_static_texture(width=width * SCALER, height=height * SCALER, default_value=data, tag="p2")
 
 with dpg.window(label="Hello, World!", tag = "Primary Window", width=1440, height=900):
     dpg.add_image("p1", pos=(0, 100), tag="piece1")
+    dpg.add_image("p1", pos=(100, 100), tag="piece2")
 
 dpg.setup_dearpygui()
 dpg.show_viewport()
 dpg.set_primary_window("Primary Window", True)
 
-puzzlePieceTags = [["piece1", False]]
 
 while dpg.is_dearpygui_running():
     
-    if (puzzlePieceTags[0][1] != True):
-        puzzlePieceTags[0][1] = moveTo((900, 500), "piece1")
-    
+    targetPos = dpg.get_item_pos("piece2")
+    moveTo(targetPos, "piece1") 
+
     dpg.render_dearpygui_frame()
     
 dpg.destroy_context()

@@ -35,6 +35,9 @@ class Piece:
             # (2) Multiple singles that can merge
             # (3) A cluster that can be merged with (need to write cluster class, which will have a list of positions rather than just one)
             #
+
+            #Victor wrote pursue! Its in movingimg example though..
+
             # Need to write code for pursuing a piece and then we can call merge(p1, p2) with them both if they meet
             # Which will return a cluster if they are able to merge and False if they can't
             # That handles cases (1) and (2) ideally
