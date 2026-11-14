@@ -18,13 +18,14 @@ class Piece:
             raise NotImplementedError("We gotta write the algorithm dawg")
 
     
-    # the first arr will have to be [[]*5]*5
-    # or whatever size we make the board but rn the fucntion assumes it's square
+    # the first arr will have to be [[None]*5]*5
+    # -1 represents an empty space
     def initial_place(self, arr):
         placed = False
         while (not placed):
-            index = random.randint(0,len(arr)-1)
-            if (len(arr[index]) < len(arr)):
+            x_index = random.randint(0,len(arr)-1)
+            y_index = random.randint(0,len(arr)-1)
+            if (arr[y_index][x_index] == -1):
                 placed = True
-                arr[index] = arr[index] + [self]
+                arr[y_index][x_index] = self
         return arr # returns the array to use for the next placement
