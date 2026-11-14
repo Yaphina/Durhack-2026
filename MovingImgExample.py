@@ -31,36 +31,45 @@ def moveTo(destinationPos, imageTag):
     dpg.configure_item(imageTag, pos=newPos)
     return False
 
+
+#to find out if things are touching via tags
+def isTouching(tag1, tag2, threshold):
+    p1 = dpg.get_item_pos(tag1)
+    p2 = dpg.get_item_pos(tag2)
+    return numpy.hypot(p2[0] - p1[0], p2[1] - p1[1]) <= threshold
+
 dpg.create_context()
 dpg.create_viewport(title="Hello, World!", width=1440, height=900)
 
 width, height, channels, data = dpg.load_image("mona lisa 4x4 puzzle/piece1.png")
-width, height, channels, data = dpg.load_image("mona lisa 4x4 puzzle/piece2.png")
-
+width2, height2, channels2, data2 = dpg.load_image("mona lisa 4x4 puzzle/piece2.png")
 
 SCALER = 1
 with dpg.texture_registry():
     dpg.add_static_texture(width=width * SCALER, height=height * SCALER, default_value=data, tag="p1")
-    dpg.add_static_texture(width=width * SCALER, height=height * SCALER, default_value=data, tag="p2")
+    dpg.add_static_texture(width=width2 * SCALER, height=height2 * SCALER, default_value=data2, tag="p2")
 
-with dpg.window(label="Hello, World!", tag = "Primary Window", width=1440, height=900):
+with dpg.window(label="Hello, World!", tag="Primary Window", width=1440, height=900):
     dpg.add_image("p1", pos=(0, 100), tag="piece1")
-    dpg.add_image("p1", pos=(1000, 100), tag="piece2")
+    dpg.add_image("p2", pos=(1000, 100), tag="piece2")
 
 dpg.setup_dearpygui()
 dpg.show_viewport()
 dpg.set_primary_window("Primary Window", True)
 
+touching = False
 
 while dpg.is_dearpygui_running():
-    
-    targetPos = dpg.get_item_pos("piece2")
-    moveTo(targetPos, "piece1") 
 
-    # Piece 2 chases one
-    targetPos = dpg.get_item_pos("piece1")
-    moveTo(targetPos, "piece2")
-    
+    if not touching:
+        if isTouching("piece1", "piece2", width):   # width of one piece
+            touching = True
+
+        #Need to merge stuff here I think
+
+        else:
+            moveTo(dpg.get_item_pos("piece2"), "piece1")
+            moveTo(dpg.get_item_pos("piece1"), "piece2")
 
     dpg.render_dearpygui_frame()
     
