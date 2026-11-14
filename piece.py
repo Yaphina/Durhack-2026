@@ -32,3 +32,5 @@ class Piece:
                 placed = True
                 arr[y_index][x_index] = self
         return arr # returns the array to use for the next placement
+
+    
