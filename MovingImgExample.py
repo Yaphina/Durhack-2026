@@ -57,6 +57,7 @@ while dpg.is_dearpygui_running():
     targetPos = dpg.get_item_pos("piece2")
     moveTo(targetPos, "piece1") 
 
+    # Piece 2 chases one
     targetPos = dpg.get_item_pos("piece1")
     moveTo(targetPos, "piece2")
     
