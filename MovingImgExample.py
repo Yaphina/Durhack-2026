@@ -62,7 +62,7 @@ touching = False
 while dpg.is_dearpygui_running():
 
     if not touching:
-        if isTouching("piece1", "piece2", width):   # width of one piece
+        if isTouching("piece1", "piece2", width / 1.5):   # width of one piece
             touching = True
 
         #Need to merge stuff here I think
