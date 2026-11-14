@@ -6,7 +6,7 @@ import numpy
 def moveTo(destinationPos, imageTag):
     
     # Speed at which the image moves
-    SPEED = 1
+    SPEED = 2
 
     imgPos = dpg.get_item_pos(imageTag)
     length = [numpy.abs(destinationPos[0] - imgPos[0]), numpy.abs(destinationPos[1] - imgPos[1])]
@@ -45,7 +45,7 @@ with dpg.texture_registry():
 
 with dpg.window(label="Hello, World!", tag = "Primary Window", width=1440, height=900):
     dpg.add_image("p1", pos=(0, 100), tag="piece1")
-    dpg.add_image("p1", pos=(100, 100), tag="piece2")
+    dpg.add_image("p1", pos=(1000, 100), tag="piece2")
 
 dpg.setup_dearpygui()
 dpg.show_viewport()
@@ -56,6 +56,10 @@ while dpg.is_dearpygui_running():
     
     targetPos = dpg.get_item_pos("piece2")
     moveTo(targetPos, "piece1") 
+
+    targetPos = dpg.get_item_pos("piece1")
+    moveTo(targetPos, "piece2")
+    
 
     dpg.render_dearpygui_frame()
     
