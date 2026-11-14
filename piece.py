@@ -1,24 +1,27 @@
 import random
+
 class Piece:
-    def __init__(self, position:int, connected:bool):
-        if position < 0 or position > 15:
+    def __init__(self, destination:int, connected:bool):
+        if destination < 0 or destination > 15:
             raise Exception("There are 16 pieces!")
         else:
-            self.position = position
+            self.destination = destination
+
             # when "connected" the piece will automatically know where it goes
             # when not "connected" the piece will have to use our algorithm
             self.connected = connected
+
             # tracks if the piece has settled into a place or not
             self.finished = False
 
-    def update(self):
+    def update(self, arr):
         if self.connected:
             finished = True
         else:
             raise NotImplementedError("We gotta write the algorithm dawg")
 
     
-    # the first arr will have to be [[None]*5]*5
+    # the first arr will have to be [[-1]*5]*5
     # -1 represents an empty space
     def initial_place(self, arr):
         placed = False
