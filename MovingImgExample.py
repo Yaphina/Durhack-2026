@@ -1,6 +1,8 @@
 import random
 import dearpygui.dearpygui as dpg
 import numpy
+import scatterBox_and_UI
+import MovingImgExample
 
 GRID = 4
 NUM = GRID * GRID

@@ -1,6 +1,7 @@
 import dearpygui.dearpygui as dpg
 from enum import Enum
 import random
+import scatterBox_and_UI
 
 class Piece:
     clusters = 0
