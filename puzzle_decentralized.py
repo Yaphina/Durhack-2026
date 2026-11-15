@@ -1,27 +1,38 @@
+import colorsys
 import math
 import random
+from collections import deque
+
 import dearpygui.dearpygui as dpg
 
 GRID = 4
 NUM = GRID * GRID
-VIEW_W, VIEW_H = 1300, 800
+VIEW_W, VIEW_H = 1440, 860
 
 # ---------------- layout ----------------
-BOX = (20, 50, 820, 770)            # ScatterBox: x0, y0, x1, y1 (pieces start inside this)
-BOARD_ORIGIN = (860, 120)           # top-left of the finished picture on the target grid
-BOARD_MAX = (420, 600)              # max size of the finished picture on screen
-ARENA = (0, 0, VIEW_W - 16, VIEW_H - 16)
-ROAM_WHOLE_ARENA = True             # offline agents may leave the box (needed to reach docked pieces)
+BOX = (20, 50, 760, 770)            # ScatterBox: x0, y0, x1, y1
+BOARD_ORIGIN = (800, 50)            # top-left of the finished picture on the target grid
+BOARD_MAX = (420, 490)              # max on-screen size of the finished picture
 
 # ---------------- behaviour ----------------
-SPEED = 2.0            # chase speed, px/frame
-HOME_SPEED = 4.0       # speed when flying to the slot the hub gave us
-REPEL_FRAMES = 60
-REPEL_SPEED = 3.0
-CHASE_LIMIT = 900
+MAX_GROUP = 4          # a group stops growing at this size and docks on the board
+SPEED = 1.0            # chase speed (px per tick)
+HOME_SPEED = 2.5       # speed when flying to the board (hub slot or full-group dock)
+REPEL_SPEED = 1.2
+REPEL_FRAMES = 90
+CHASE_LIMIT = 1500     # ticks before giving up on a target
 PASS_CHANCE = 0.6
 TOUCH_MARGIN = 6
 LINK_REROLL_FRAMES = 30
+EASE = 0.10            # how fast merged pieces glide into alignment
+
+# live values, read from the sliders every frame
+QUALITY = 0
+MERGE_FRAMES = 75      # how long two matching groups must stay in contact before they merge
+PATIENCE = 300         # ticks (60 per second at speed 1) a stuck group waits, then docks on the board anyway
+SIM_SPEED = 1.0
+SHOW_OVERLAY = True
+PAUSED = False
 
 # Top-left of each piece PNG in the finished picture (original PNG pixels), from calibrate.py
 FINAL = {
@@ -30,6 +41,11 @@ FINAL = {
     8:  (0,    451),  9:  (200,  468),  10: (396,  448),  11: (530,  462),
     12: (-2,   769),  13: (120,  712),  14: (314,  769),  15: (593,  705),
 }
+
+GREEN = (80, 220, 120, 255)
+GOLD = (255, 200, 60, 255)
+RED = (235, 90, 90, 255)
+WHITE = (255, 255, 255, 255)
 
 # ---------------- textures and scale ----------------
 dpg.create_context()
@@ -56,27 +72,57 @@ S = min(1.0,
 
 PW = {n: TEX_W[n] * S for n in range(NUM)}
 PH = {n: TEX_H[n] * S for n in range(NUM)}
-# offset of each piece inside the finished picture (>= 0)
 FIN = {n: ((FINAL[n][0] - min_x) * S, (FINAL[n][1] - min_y) * S) for n in range(NUM)}
 
-# ---------------- drawing: box, board, pieces ----------------
+# ---------------- theme ----------------
+with dpg.theme() as THEME:
+    with dpg.theme_component(dpg.mvAll):
+        core = dpg.mvThemeCat_Core
+        dpg.add_theme_style(dpg.mvStyleVar_WindowRounding, 8, category=core)
+        dpg.add_theme_style(dpg.mvStyleVar_ChildRounding, 6, category=core)
+        dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 5, category=core)
+        dpg.add_theme_style(dpg.mvStyleVar_GrabRounding, 5, category=core)
+        dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 12, 10, category=core)
+        dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 8, 4, category=core)
+        dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, 8, 8, category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_WindowBg, (18, 20, 26), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_ChildBg, (26, 29, 37), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_TitleBg, (30, 34, 44), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive, (40, 46, 60), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_Border, (55, 60, 75), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (38, 42, 54), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (50, 56, 72), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (60, 68, 88), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_SliderGrab, (90, 160, 255), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_SliderGrabActive, (130, 190, 255), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_CheckMark, (90, 160, 255), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_Button, (52, 96, 170), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (70, 120, 205), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (90, 140, 225), category=core)
+dpg.bind_theme(THEME)
+
+# ---------------- drawing: box, board, pieces, overlay ----------------
 with dpg.window(tag="main", no_scrollbar=True, no_title_bar=True, no_move=True, no_resize=True):
     with dpg.drawlist(width=VIEW_W, height=VIEW_H, tag="canvas"):
-        # scatter box
-        dpg.draw_rectangle((BOX[0], BOX[1]), (BOX[2], BOX[3]), color=(120, 120, 120, 255), thickness=2)
-        dpg.draw_text((BOX[0], BOX[1] - 24), "ScatterBox", size=18)
-        # target grid
-        dpg.draw_text((BOARD_ORIGIN[0], BOARD_ORIGIN[1] - 24), "Target grid", size=18)
-        dpg.draw_rectangle(BOARD_ORIGIN,
-                           (BOARD_ORIGIN[0] + pic_w * S, BOARD_ORIGIN[1] + pic_h * S),
-                           color=(120, 120, 120, 255), thickness=2)
-        for n in range(NUM):
+        dpg.draw_rectangle((BOX[0], BOX[1]), (BOX[2], BOX[3]), color=(70, 78, 100, 255),
+                           fill=(26, 29, 37, 255), thickness=2, rounding=6)
+        dpg.draw_text((BOX[0], BOX[1] - 26), "ScatterBox", size=18, color=(200, 206, 220, 255))
+        dpg.draw_text((BOARD_ORIGIN[0], BOARD_ORIGIN[1] - 26), "Target grid", size=18, color=(200, 206, 220, 255))
+        dpg.draw_rectangle((BOARD_ORIGIN[0] - 6, BOARD_ORIGIN[1] - 6),
+                           (BOARD_ORIGIN[0] + pic_w * S + 6, BOARD_ORIGIN[1] + pic_h * S + 6),
+                           color=(70, 78, 100, 255), fill=(22, 24, 31, 255), thickness=2, rounding=6)
+        for n in range(NUM):   # faint ghost of where each piece belongs
             sx, sy = BOARD_ORIGIN[0] + FIN[n][0], BOARD_ORIGIN[1] + FIN[n][1]
-            dpg.draw_rectangle((sx, sy), (sx + PW[n], sy + PH[n]), color=(70, 70, 70, 255))
-            dpg.draw_text((sx + 4, sy + 2), str(n), size=14, color=(90, 90, 90, 255))
-        # pieces (drawn last so they sit on top)
+            dpg.draw_image(f"tex{n}", (sx, sy), (sx + PW[n], sy + PH[n]), color=(255, 255, 255, 40))
+            dpg.draw_rectangle((sx, sy), (sx + PW[n], sy + PH[n]), color=(60, 66, 84, 255))
         for n in range(NUM):
             dpg.draw_image(f"tex{n}", (0, 0), (PW[n], PH[n]), tag=f"img{n}")
+        for n in range(NUM):
+            dpg.draw_rectangle((0, 0), (1, 1), color=WHITE, thickness=2, tag=f"box{n}")
+        for n in range(NUM):
+            dpg.draw_line((0, 0), (1, 1), color=WHITE, thickness=2, tag=f"ln{n}", show=False)
+        for n in range(NUM):
+            dpg.draw_text((0, 0), " ", size=15, color=WHITE, tag=f"lbl{n}", show=False)
 
 # ---------------- piece geometry ----------------
 P = {n: [0.0, 0.0] for n in range(NUM)}      # top-left of each piece on screen
@@ -87,8 +133,7 @@ def center(n):
 
 
 def origin(n):
-    """Where the picture's top-left would be if piece n were correctly placed.
-    Two correctly related pieces have the same origin."""
+    """Where the picture's top-left would be if piece n were correctly placed."""
     return P[n][0] - FIN[n][0], P[n][1] - FIN[n][1]
 
 
@@ -105,28 +150,72 @@ def edges_match(a, b):
     return abs(r1 - r2) + abs(c1 - c2) == 1
 
 
-def roam_rect():
-    return ARENA if ROAM_WHOLE_ARENA else BOX
+def group_color(gid):
+    r, g, b = colorsys.hsv_to_rgb((gid * 0.618) % 1.0, 0.6, 1.0)
+    return (int(r * 255), int(g * 255), int(b * 255), 255)
+
+
+# ---------------- event log ----------------
+tick = 0
+log_lines = deque(maxlen=11)
+log_dirty = True
+
+
+def log(msg):
+    global log_dirty
+    log_lines.append(f"[{tick // 60:3d}s] {msg}")
+    log_dirty = True
 
 
 # ---------------- agents (one per piece or merged group) ----------------
 agents = []
 agent_of = {}
+next_gid = 0
+
+
+def can_merge(x, y):
+    return (not x.settled and not y.settled and
+            len(x.members) + len(y.members) <= MAX_GROUP)
 
 
 class Agent:
     def __init__(self, piece):
+        global next_gid
+        self.gid = next_gid
+        next_gid += 1
         self.members = [piece]
+        self.ref = piece               # the member whose position is authoritative
         self.settled = False
+        self.parked = False            # given up: left behind in the box
         self.target = None
         self.repel_left = 0
         self.repel_vel = (0.0, 0.0)
         self.chase_time = 0
         self.random_next = False
         self.failed = set()            # this agent's OWN memory of rejected pairs
-        self.pass_roll = {}            # other agent -> does the smaller one pass through?
+        self.cycles = 0
+        self.wait = 0                  # how long I have been waiting with nobody to chase
+        self.force_dock = False
+        self.pass_roll = {}
+        self.hold = {}                 # (my piece, their piece) -> ticks in contact
+        self.line = None
+        self.state = "idle"
         self.link_ok = False
         self.link_timer = 0
+
+    # ----- appearance -----
+    def color(self):
+        if self.settled:
+            return GREEN
+        if self.parked:
+            return RED
+        if len(self.members) >= MAX_GROUP:
+            return GOLD
+        return group_color(self.gid)
+
+    def label(self):
+        pieces = " ".join(str(m) for m in sorted(self.members))
+        return f"[{pieces}] {self.state}"
 
     # ----- local sensing: only what I am touching -----
     def sense(self):
@@ -138,17 +227,15 @@ class Agent:
                     out.append((a, b, other))
         return out
 
-    # ----- hub link (unreliable) -----
     def update_link(self):
         self.link_timer -= 1
         if self.link_timer <= 0:
-            self.link_ok = random.random() * 100 < dpg.get_value("quality")
+            self.link_ok = random.random() * 100 < QUALITY
             self.link_timer = LINK_REROLL_FRAMES
 
-    # ----- movement helper -----
     def shift(self, dx, dy, clamp=False):
         if clamp:
-            x0, y0, x1, y1 = roam_rect()
+            x0, y0, x1, y1 = BOX
             lo_x = min(P[m][0] for m in self.members)
             lo_y = min(P[m][1] for m in self.members)
             hi_x = max(P[m][0] + PW[m] for m in self.members)
@@ -160,30 +247,92 @@ class Agent:
             P[m][1] += dy
         return dx, dy
 
-    # ----- one tick: uses only my state + my contacts + (maybe) the hub -----
+    def ease(self):
+        """After a merge the pieces glide into exact alignment instead of jumping."""
+        rx, ry = origin(self.ref)
+        for m in self.members:
+            if m == self.ref:
+                continue
+            tx, ty = rx + FIN[m][0], ry + FIN[m][1]
+            dx, dy = tx - P[m][0], ty - P[m][1]
+            if abs(dx) + abs(dy) < 0.3:
+                P[m][0], P[m][1] = tx, ty
+            else:
+                P[m][0] += dx * EASE
+                P[m][1] += dy * EASE
+
+    def outside_vec(self):
+        x0, y0, x1, y1 = BOX
+        lo_x = min(P[m][0] for m in self.members)
+        lo_y = min(P[m][1] for m in self.members)
+        hi_x = max(P[m][0] + PW[m] for m in self.members)
+        hi_y = max(P[m][1] + PH[m] for m in self.members)
+        dx = x0 - lo_x if lo_x < x0 else (x1 - hi_x if hi_x > x1 else 0)
+        dy = y0 - lo_y if lo_y < y0 else (y1 - hi_y if hi_y > y1 else 0)
+        return dx, dy
+
+    # ----- one tick: only my state, my contacts and (maybe) the hub -----
     def step(self):
+        self.line = None
+        self.ease()
         self.update_link()
         contacts = self.sense()
 
-        # correct matches always win
+        # 1. correct match + room in the group: stay in contact for a while, then merge
+        active, linking = set(), False
         for a, b, other in contacts:
-            if edges_match(a, b):
-                merge(self, other, a, b)
-                return
-
-        if self.settled:
+            if edges_match(a, b) and can_merge(self, other):
+                key = (a, b)
+                active.add(key)
+                self.hold[key] = self.hold.get(key, 0) + 1
+                if self.hold[key] >= MERGE_FRAMES:
+                    merge(self, other, a, b)
+                    return
+                linking = True
+                self.state = f"linking {int(100 * self.hold[key] / MERGE_FRAMES)}%"
+                self.line = (a, b, WHITE)
+        self.hold = {k: v for k, v in self.hold.items() if k in active}
+        if linking:
             return
 
-        if self.link_ok:                     # hub reachable: ask it for my slot
-            self.repel_left = 0
+        # 2. already on the board
+        if self.settled:
+            self.state = "on board"
+            return
+
+        # 3. a full group knows its own place in the picture and docks itself (no hub needed)
+        if len(self.members) >= MAX_GROUP or self.force_dock:
+            self.state = "going to board"
             self.home()
             return
 
-        # ---- hub unreachable: peer-to-peer ----
+        # 4. hub reachable: ask it for my slot
+        if self.link_ok:
+            self.parked = False
+            self.wait = 0
+            self.repel_left = 0
+            self.state = "hub: going to slot"
+            self.home()
+            return
+
+        # 5. hub unreachable: peer to peer
         touched = {id(o) for _, _, o in contacts}
         self.pass_roll = {k: v for k, v in self.pass_roll.items() if k in touched}
 
+        vx, vy = self.outside_vec()
+        if abs(vx) + abs(vy) > 0.5:          # flew out of the box when the link dropped
+            d = math.hypot(vx, vy)
+            step = min(SPEED * 2, d)
+            self.shift(vx / d * step, vy / d * step)
+            self.state = "back into box"
+            return
+
+        if self.parked:
+            self.state = "left behind"
+            return
+
         if self.repel_left > 0:
+            self.state = "backing off"
             self.repel_move()
             return
 
@@ -201,13 +350,15 @@ class Agent:
 
     # ----- behaviours -----
     def home(self):
-        anchor = self.members[0]
-        ox, oy = origin(anchor)
+        ox, oy = origin(self.ref)
         dx, dy = BOARD_ORIGIN[0] - ox, BOARD_ORIGIN[1] - oy
         d = math.hypot(dx, dy)
         if d <= HOME_SPEED:
-            self.shift(dx, dy)
+            for m in self.members:
+                P[m][0] = BOARD_ORIGIN[0] + FIN[m][0]
+                P[m][1] = BOARD_ORIGIN[1] + FIN[m][1]
             self.settled = True
+            log(f"pieces {sorted(self.members)} placed on the board")
         else:
             self.shift(dx / d * HOME_SPEED, dy / d * HOME_SPEED)
 
@@ -238,13 +389,22 @@ class Agent:
 
     def pick_target(self):
         def candidates():
-            return [p for p in range(NUM)
-                    if agent_of[p] is not self
-                    and not any(frozenset((m, p)) in self.failed for m in self.members)]
+            out = []
+            for p in range(NUM):
+                o = agent_of[p]
+                if o is self or o.settled or len(o.members) + len(self.members) > MAX_GROUP:
+                    continue
+                if any(frozenset((m, p)) in self.failed for m in self.members):
+                    continue
+                out.append(p)
+            return out
         c = candidates()
-        if not c:
+        if not c and self.failed and self.cycles < 1:
+            self.cycles += 1                 # tried everyone once: forget and try once more
             self.failed.clear()
             c = candidates()
+        if not c:
+            return None
         if self.random_next:
             return random.choice(c)
         return min(c, key=lambda p: min(math.hypot(center(p)[0] - center(m)[0],
@@ -252,16 +412,29 @@ class Agent:
                                         for m in self.members))
 
     def chase(self):
+        if self.target is not None:
+            o = agent_of[self.target]
+            if o is self or o.settled or len(o.members) + len(self.members) > MAX_GROUP:
+                self.target = None
         self.chase_time += 1
         if self.chase_time > CHASE_LIMIT and self.target is not None:
             for m in self.members:
                 self.failed.add(frozenset((m, self.target)))
             self.target = None
             self.random_next = True
-        if self.target is None or agent_of[self.target] is self:
+        if self.target is None:
             self.target = self.pick_target()
             self.random_next = False
             self.chase_time = 0
+        if self.target is None:
+            # nobody I can chase right now: stay put and let others come to me
+            self.wait += 1
+            self.state = f"waiting {min(100, int(100 * self.wait / PATIENCE))}%"
+            if self.wait >= PATIENCE:
+                self.force_dock = True      # nobody can join me: go to my own place in the picture
+                log(f"pieces {sorted(self.members)} cannot grow, going to the board")
+            return
+        self.wait = 0
 
         tx, ty = center(self.target)
         anchor = min(self.members,
@@ -269,35 +442,39 @@ class Agent:
         ax, ay = center(anchor)
         dx, dy = tx - ax, ty - ay
         d = math.hypot(dx, dy)
+        self.state = f"chasing piece {self.target}"
+        self.line = (anchor, self.target, self.color())
         if d > 0:
             step = min(SPEED, d)
             self.shift(dx / d * step, dy / d * step, clamp=True)
 
 
 def merge(x, y, a, b):
-    """a (in x) and b (in y) fit. The settled / bigger group stays put; the other snaps to it."""
-    keep, give, ka, ga = x, y, a, b
-    if (y.settled and not x.settled) or (x.settled == y.settled and len(y.members) > len(x.members)):
-        keep, give, ka, ga = y, x, b, a
-    if not give.settled:
-        ok, og = origin(ka), origin(ga)
-        give.shift(ok[0] - og[0], ok[1] - og[1])
+    """a (in x) and b (in y) fit. The bigger group keeps going; the other joins and glides into place."""
+    keep, give = (x, y) if len(x.members) >= len(y.members) else (y, x)
     for m in give.members:
         agent_of[m] = keep
     keep.members += give.members
     keep.failed |= give.failed
-    keep.settled = keep.settled or give.settled
+    keep.hold = {}
     keep.target = None
     keep.chase_time = 0
     keep.random_next = False
     keep.repel_left = 0
+    keep.parked = False
+    keep.cycles = 0
+    keep.wait = 0
     agents.remove(give)
-    print("merged", a, b, "-> group size", len(keep.members), "(settled)" if keep.settled else "")
+    log(f"pieces {a} and {b} fit: group is now {sorted(keep.members)}")
 
 
-# ---------------- reset / scatter ----------------
+# ---------------- reset / sync / overlay ----------------
 def reset(*_):
+    global next_gid, tick, log_dirty
     agents.clear()
+    log_lines.clear()
+    next_gid = 0
+    tick = 0
     slots = [(BOX[0] + c * cell_w, BOX[1] + r * cell_h) for r in range(GRID) for c in range(GRID)]
     random.shuffle(slots)
     for n in range(NUM):
@@ -307,6 +484,13 @@ def reset(*_):
         ag = Agent(n)
         agents.append(ag)
         agent_of[n] = ag
+    log("pieces scattered")
+
+
+def toggle_pause(*_):
+    global PAUSED
+    PAUSED = not PAUSED
+    dpg.set_item_label("pause_btn", "Resume" if PAUSED else "Pause")
 
 
 def sync():
@@ -314,26 +498,119 @@ def sync():
         dpg.configure_item(f"img{n}", pmin=(P[n][0], P[n][1]), pmax=(P[n][0] + PW[n], P[n][1] + PH[n]))
 
 
-# ---------------- controls ----------------
-with dpg.window(label="Controls", pos=(860, 10), width=420, height=95, no_close=True):
-    dpg.add_slider_int(label="Hub link quality %", tag="quality", default_value=100, min_value=0, max_value=100, width=200)
-    dpg.add_button(label="Scatter again", callback=reset)
-    dpg.add_text("", tag="status")
+def update_overlay():
+    leads = {ag.members[0]: ag for ag in agents}
+    for n in range(NUM):
+        if not SHOW_OVERLAY:
+            dpg.configure_item(f"box{n}", show=False)
+            dpg.configure_item(f"ln{n}", show=False)
+            dpg.configure_item(f"lbl{n}", show=False)
+            continue
+        ag = agent_of[n]
+        if ag.settled:                       # on the board: drop the overlay
+            dpg.configure_item(f"box{n}", show=False)
+            dpg.configure_item(f"ln{n}", show=False)
+            dpg.configure_item(f"lbl{n}", show=False)
+            continue
+        dpg.configure_item(f"box{n}", pmin=(P[n][0], P[n][1]), pmax=(P[n][0] + PW[n], P[n][1] + PH[n]),
+                           color=ag.color(), thickness=3 if ag.hold else 2, show=True)
+        if n in leads and not ag.settled:
+            dpg.configure_item(f"lbl{n}", pos=(P[n][0], max(0, P[n][1] - 18)), text=ag.label(),
+                               color=ag.color(), show=True)
+        else:
+            dpg.configure_item(f"lbl{n}", show=False)
+        if n in leads and ag.line:
+            p, q, col = ag.line
+            dpg.configure_item(f"ln{n}", p1=center(p), p2=center(q), color=col, show=True)
+        else:
+            dpg.configure_item(f"ln{n}", show=False)
+
+
+finished_logged = False
+
+
+def update_status():
+    global finished_logged, log_dirty
+    on_board = sum(len(a.members) for a in agents if a.settled)
+    waiting = sum(len(a.members) for a in agents if a.wait > 0 and not a.settled)
+    finished = all(a.settled for a in agents)
+    dpg.set_value("st_groups", f"Groups: {len(agents)}")
+    dpg.set_value("st_board", f"On board: {on_board}/{NUM}")
+    dpg.set_value("st_left", f"Waiting: {waiting}")
+    if PAUSED:
+        dpg.set_value("st_state", "Paused")
+    elif finished:
+        dpg.set_value("st_state", "Finished")
+    else:
+        dpg.set_value("st_state", "Running")
+    if finished and not finished_logged:
+        finished_logged = True
+        log(f"done: all {on_board} pieces are on the board")
+    elif not finished:
+        finished_logged = False
+    if log_dirty:
+        dpg.set_value("log", "\n".join(log_lines))
+        log_dirty = False
+
+
+# ---------------- GUI panels ----------------
+with dpg.window(label="Controls", tag="ctrl", pos=(800, 556), width=620, height=265,
+                no_close=True, no_collapse=True, no_move=True, no_resize=True):
+    with dpg.group(horizontal=True):
+        with dpg.child_window(width=290, height=215, border=False):
+            dpg.add_slider_int(label="Hub link %", tag="quality", default_value=0,
+                               min_value=0, max_value=100, width=150)
+            dpg.add_slider_float(label="Speed", tag="speed", default_value=1.0,
+                                 min_value=0.1, max_value=8.0, format="%.2fx", width=150)
+            dpg.add_slider_int(label="Link hold", tag="hold", default_value=MERGE_FRAMES,
+                               min_value=15, max_value=240, width=150)
+            dpg.add_slider_int(label="Patience (s)", tag="patience", default_value=PATIENCE // 60,
+                               min_value=1, max_value=30, width=150)
+            dpg.add_checkbox(label="Show groups / labels", tag="overlay", default_value=True)
+            with dpg.group(horizontal=True):
+                dpg.add_button(label="Pause", tag="pause_btn", width=90, callback=toggle_pause)
+                dpg.add_button(label="Scatter again", width=130, callback=reset)
+        with dpg.child_window(width=-1, height=215, border=True):
+            dpg.add_text("Event log", color=(140, 170, 230))
+            dpg.add_text("", tag="log", wrap=290)
+
+with dpg.window(label="Status", tag="status", pos=(1232, 50), width=190, height=250,
+                no_close=True, no_collapse=True, no_move=True, no_resize=True):
+    dpg.add_text("", tag="st_state", color=(140, 170, 230))
+    dpg.add_text("", tag="st_groups")
+    dpg.add_text("", tag="st_board", color=GREEN)
+    dpg.add_text("", tag="st_left", color=(160, 166, 180))
+    dpg.add_separator()
+    dpg.add_text("Outline colours", color=(160, 166, 180))
+    dpg.add_text("coloured = a group", color=(120, 190, 255))
+    dpg.add_text("gold = full, docking", color=GOLD)
+    dpg.add_text("gray text = waiting", color=(160, 166, 180))
+    dpg.add_text("white line = linking", color=WHITE)
 
 reset()
 dpg.setup_dearpygui()
 dpg.show_viewport()
 dpg.set_primary_window("main", True)
 
+sim_accum = 0.0
 while dpg.is_dearpygui_running():
-    for ag in list(agents):
-        if ag in agents:
-            ag.step()
+    QUALITY = dpg.get_value("quality")
+    SIM_SPEED = dpg.get_value("speed")
+    MERGE_FRAMES = dpg.get_value("hold")
+    PATIENCE = dpg.get_value("patience") * 60
+    SHOW_OVERLAY = dpg.get_value("overlay")
+    if not PAUSED:
+        sim_accum += SIM_SPEED
+        steps = int(sim_accum)
+        sim_accum -= steps
+        for _ in range(steps):
+            tick += 1
+            for ag in list(agents):
+                if ag in agents:
+                    ag.step()
     sync()
-    solved = len(agents) == 1
-    dpg.set_value("status", f"groups: {len(agents)}   settled pieces: "
-                            f"{sum(len(a.members) for a in agents if a.settled)}/{NUM}"
-                            + ("   SOLVED" if solved else ""))
+    update_overlay()
+    update_status()
     dpg.render_dearpygui_frame()
 
 dpg.destroy_context()
