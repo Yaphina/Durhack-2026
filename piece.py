@@ -1,19 +1,30 @@
+import dearpygui.dearpygui as dpg
 import random
 
 class Piece:
-    def __init__(self, destination:int, connected:bool):
+    def __init__(self, destination: int, connected: bool, parentWindow: int | str):
         if destination < 0 or destination > 15:
             raise Exception("There are 16 pieces!")
         else:
             self.destination = destination
-
+            # Creating image to puzzle 
+            filePath = "mona lisa 4x4 puzzle/piece{0}.png".format(destination)
+            width, height, channels, data = dpg.load_image(filePath)
+            with dpg.texture_registry():
+                textureTag = dpg.add_static_texture(width=width, height=height, default_value=data)
+            self.imageTag = dpg.add_image(textureTag, pos=(400 * destination, 600), parent=parentWindow)
+            
+            
             # when "connected" the piece will automatically know where it goes
             # when not "connected" the piece will have to use our algorithm
             self.connected = connected
 
             # tracks if the piece has settled into a place or not
             self.finished = False
-
+    
+    def getImageTag(self):
+        return self.imageTag
+    
     def update(self, arr):
         if self.connected:
             finished = True
@@ -55,9 +66,5 @@ class Piece:
                 arr[y_index][x_index] = self
         return arr # returns the array to use for the next placement
 
-<<<<<<< HEAD
-    
-=======
 def merge(p1, p2):
     raise NotImplementedError("Will need to handle merging pieces, pieces and clusters, and 2 clusters")
->>>>>>> a7df6cc94dad76bd4cbf9e1a69c608612a9e8491
