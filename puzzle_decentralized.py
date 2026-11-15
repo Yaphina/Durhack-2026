@@ -74,53 +74,68 @@ PW = {n: TEX_W[n] * S for n in range(NUM)}
 PH = {n: TEX_H[n] * S for n in range(NUM)}
 FIN = {n: ((FINAL[n][0] - min_x) * S, (FINAL[n][1] - min_y) * S) for n in range(NUM)}
 
-# ---------------- theme ----------------
+# ---------------- theme: dark, sharp corners, black and white buttons ----------------
 with dpg.theme() as THEME:
     with dpg.theme_component(dpg.mvAll):
         core = dpg.mvThemeCat_Core
-        dpg.add_theme_style(dpg.mvStyleVar_WindowRounding, 8, category=core)
-        dpg.add_theme_style(dpg.mvStyleVar_ChildRounding, 6, category=core)
-        dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 5, category=core)
-        dpg.add_theme_style(dpg.mvStyleVar_GrabRounding, 5, category=core)
-        dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 12, 10, category=core)
-        dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 8, 4, category=core)
-        dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, 8, 8, category=core)
-        dpg.add_theme_color(dpg.mvThemeCol_WindowBg, (18, 20, 26), category=core)
-        dpg.add_theme_color(dpg.mvThemeCol_ChildBg, (26, 29, 37), category=core)
-        dpg.add_theme_color(dpg.mvThemeCol_TitleBg, (30, 34, 44), category=core)
-        dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive, (40, 46, 60), category=core)
-        dpg.add_theme_color(dpg.mvThemeCol_Border, (55, 60, 75), category=core)
-        dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (38, 42, 54), category=core)
-        dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (50, 56, 72), category=core)
-        dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (60, 68, 88), category=core)
-        dpg.add_theme_color(dpg.mvThemeCol_SliderGrab, (90, 160, 255), category=core)
-        dpg.add_theme_color(dpg.mvThemeCol_SliderGrabActive, (130, 190, 255), category=core)
-        dpg.add_theme_color(dpg.mvThemeCol_CheckMark, (90, 160, 255), category=core)
-        dpg.add_theme_color(dpg.mvThemeCol_Button, (52, 96, 170), category=core)
-        dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (70, 120, 205), category=core)
-        dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (90, 140, 225), category=core)
+        for style in (dpg.mvStyleVar_WindowRounding, dpg.mvStyleVar_ChildRounding,
+                      dpg.mvStyleVar_FrameRounding, dpg.mvStyleVar_GrabRounding,
+                      dpg.mvStyleVar_PopupRounding, dpg.mvStyleVar_ScrollbarRounding):
+            dpg.add_theme_style(style, 0, category=core)          # square everything
+        dpg.add_theme_style(dpg.mvStyleVar_WindowBorderSize, 1, category=core)
+        dpg.add_theme_style(dpg.mvStyleVar_ChildBorderSize, 1, category=core)
+        dpg.add_theme_style(dpg.mvStyleVar_FrameBorderSize, 1, category=core)
+        dpg.add_theme_style(dpg.mvStyleVar_WindowPadding, 14, 12, category=core)
+        dpg.add_theme_style(dpg.mvStyleVar_FramePadding, 10, 6, category=core)
+        dpg.add_theme_style(dpg.mvStyleVar_ItemSpacing, 10, 10, category=core)
+        dpg.add_theme_style(dpg.mvStyleVar_GrabMinSize, 14, category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_Text, (232, 232, 232), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_WindowBg, (6, 6, 6), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_ChildBg, (0, 0, 0), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_PopupBg, (0, 0, 0), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_Border, (95, 95, 95), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_Separator, (70, 70, 70), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_TitleBg, (0, 0, 0), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive, (0, 0, 0), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (18, 18, 18), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (36, 36, 36), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (52, 52, 52), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_SliderGrab, (120, 120, 120), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_SliderGrabActive, (170, 170, 170), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_CheckMark, (255, 255, 255), category=core)
+    with dpg.theme_component(dpg.mvButton):                       # white buttons, black text
+        dpg.add_theme_color(dpg.mvThemeCol_Button, (240, 240, 240), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (190, 190, 190), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (140, 140, 140), category=core)
+        dpg.add_theme_color(dpg.mvThemeCol_Text, (0, 0, 0), category=core)
 dpg.bind_theme(THEME)
 
 # ---------------- drawing: box, board, pieces, overlay ----------------
 with dpg.window(tag="main", no_scrollbar=True, no_title_bar=True, no_move=True, no_resize=True):
     with dpg.drawlist(width=VIEW_W, height=VIEW_H, tag="canvas"):
-        dpg.draw_rectangle((BOX[0], BOX[1]), (BOX[2], BOX[3]), color=(70, 78, 100, 255),
-                           fill=(26, 29, 37, 255), thickness=2, rounding=6)
-        dpg.draw_text((BOX[0], BOX[1] - 26), "ScatterBox", size=18, color=(200, 206, 220, 255))
-        dpg.draw_text((BOARD_ORIGIN[0], BOARD_ORIGIN[1] - 26), "Target grid", size=18, color=(200, 206, 220, 255))
+        dpg.draw_rectangle((BOX[0], BOX[1]), (BOX[2], BOX[3]), color=(200, 200, 200, 255),
+                           fill=(10, 10, 10, 255), thickness=1.5, rounding=0)
+        dpg.draw_text((BOX[0], BOX[1] - 26), "ScatterBox", size=18, color=(240, 240, 240, 255))
+        dpg.draw_text((BOARD_ORIGIN[0], BOARD_ORIGIN[1] - 26), "Target grid", size=18, color=(240, 240, 240, 255))
         dpg.draw_rectangle((BOARD_ORIGIN[0] - 6, BOARD_ORIGIN[1] - 6),
                            (BOARD_ORIGIN[0] + pic_w * S + 6, BOARD_ORIGIN[1] + pic_h * S + 6),
-                           color=(70, 78, 100, 255), fill=(22, 24, 31, 255), thickness=2, rounding=6)
+                           color=(200, 200, 200, 255), fill=(10, 10, 10, 255), thickness=1.5, rounding=0)
         for n in range(NUM):   # faint ghost of where each piece belongs
             sx, sy = BOARD_ORIGIN[0] + FIN[n][0], BOARD_ORIGIN[1] + FIN[n][1]
             dpg.draw_image(f"tex{n}", (sx, sy), (sx + PW[n], sy + PH[n]), color=(255, 255, 255, 40))
-            dpg.draw_rectangle((sx, sy), (sx + PW[n], sy + PH[n]), color=(60, 66, 84, 255))
+            dpg.draw_rectangle((sx, sy), (sx + PW[n], sy + PH[n]), color=(48, 48, 48, 255))
         for n in range(NUM):
             dpg.draw_image(f"tex{n}", (0, 0), (PW[n], PH[n]), tag=f"img{n}")
         for n in range(NUM):
             dpg.draw_rectangle((0, 0), (1, 1), color=WHITE, thickness=2, tag=f"box{n}")
         for n in range(NUM):
             dpg.draw_line((0, 0), (1, 1), color=WHITE, thickness=2, tag=f"ln{n}", show=False)
+        for n in range(NUM):
+            dpg.draw_rectangle((0, 0), (1, 1), color=WHITE, fill=(0, 0, 0, 235), thickness=1,
+                               tag=f"chip{n}", show=False)
+            dpg.draw_rectangle((0, 0), (1, 1), color=(50, 50, 50, 255), fill=(50, 50, 50, 255),
+                               tag=f"barbg{n}", show=False)
+            dpg.draw_rectangle((0, 0), (1, 1), color=WHITE, fill=WHITE, tag=f"bar{n}", show=False)
         for n in range(NUM):
             dpg.draw_text((0, 0), " ", size=15, color=WHITE, tag=f"lbl{n}", show=False)
 
@@ -199,6 +214,7 @@ class Agent:
         self.pass_roll = {}
         self.hold = {}                 # (my piece, their piece) -> ticks in contact
         self.line = None
+        self.progress = None           # 0..1 for the bar under the label
         self.state = "idle"
         self.link_ok = False
         self.link_timer = 0
@@ -274,6 +290,7 @@ class Agent:
     # ----- one tick: only my state, my contacts and (maybe) the hub -----
     def step(self):
         self.line = None
+        self.progress = None
         self.ease()
         self.update_link()
         contacts = self.sense()
@@ -289,7 +306,8 @@ class Agent:
                     merge(self, other, a, b)
                     return
                 linking = True
-                self.state = f"linking {int(100 * self.hold[key] / MERGE_FRAMES)}%"
+                self.state = "linking"
+                self.progress = self.hold[key] / MERGE_FRAMES
                 self.line = (a, b, WHITE)
         self.hold = {k: v for k, v in self.hold.items() if k in active}
         if linking:
@@ -429,7 +447,8 @@ class Agent:
         if self.target is None:
             # nobody I can chase right now: stay put and let others come to me
             self.wait += 1
-            self.state = f"waiting {min(100, int(100 * self.wait / PATIENCE))}%"
+            self.state = "waiting"
+            self.progress = min(1.0, self.wait / PATIENCE)
             if self.wait >= PATIENCE:
                 self.force_dock = True      # nobody can join me: go to my own place in the picture
                 log(f"pieces {sorted(self.members)} cannot grow, going to the board")
@@ -498,30 +517,48 @@ def sync():
         dpg.configure_item(f"img{n}", pmin=(P[n][0], P[n][1]), pmax=(P[n][0] + PW[n], P[n][1] + PH[n]))
 
 
+def hide_label(n):
+    for k in ("lbl", "chip", "bar", "barbg"):
+        dpg.configure_item(f"{k}{n}", show=False)
+
+
 def update_overlay():
     leads = {ag.members[0]: ag for ag in agents}
+    placed = []                                  # label rectangles already used this frame
     for n in range(NUM):
-        if not SHOW_OVERLAY:
-            dpg.configure_item(f"box{n}", show=False)
-            dpg.configure_item(f"ln{n}", show=False)
-            dpg.configure_item(f"lbl{n}", show=False)
-            continue
         ag = agent_of[n]
-        if ag.settled:                       # on the board: drop the overlay
+        if not SHOW_OVERLAY or ag.settled:       # hidden, or on the board
             dpg.configure_item(f"box{n}", show=False)
             dpg.configure_item(f"ln{n}", show=False)
-            dpg.configure_item(f"lbl{n}", show=False)
+            hide_label(n)
             continue
+        col = ag.color()
         dpg.configure_item(f"box{n}", pmin=(P[n][0], P[n][1]), pmax=(P[n][0] + PW[n], P[n][1] + PH[n]),
-                           color=ag.color(), thickness=3 if ag.hold else 2, show=True)
-        if n in leads and not ag.settled:
-            dpg.configure_item(f"lbl{n}", pos=(P[n][0], max(0, P[n][1] - 18)), text=ag.label(),
-                               color=ag.color(), show=True)
+                           color=col, thickness=3 if ag.hold else 2, show=True)
+
+        if n in leads:
+            text = ag.label()
+            w, h = len(text) * 8.1 + 12, 22
+            x, y = P[n][0], max(0.0, P[n][1] - h - 6)
+            while any(x < px + pw and px < x + w and y < py + ph and py < y + h + 6
+                      for px, py, pw, ph in placed):
+                y += h + 8                       # slide down until it no longer covers another label
+            placed.append((x, y, w, h + 6))
+            dpg.configure_item(f"chip{n}", pmin=(x, y), pmax=(x + w, y + h), color=col, show=True)
+            dpg.configure_item(f"lbl{n}", pos=(x + 6, y + 4), text=text, color=WHITE, show=True)
+            if ag.progress is not None:
+                dpg.configure_item(f"barbg{n}", pmin=(x, y + h), pmax=(x + w, y + h + 4), show=True)
+                dpg.configure_item(f"bar{n}", pmin=(x, y + h), pmax=(x + w * ag.progress, y + h + 4),
+                                   color=col, fill=col, show=True)
+            else:
+                dpg.configure_item(f"barbg{n}", show=False)
+                dpg.configure_item(f"bar{n}", show=False)
         else:
-            dpg.configure_item(f"lbl{n}", show=False)
+            hide_label(n)
+
         if n in leads and ag.line:
-            p, q, col = ag.line
-            dpg.configure_item(f"ln{n}", p1=center(p), p2=center(q), color=col, show=True)
+            p, q, lc = ag.line
+            dpg.configure_item(f"ln{n}", p1=center(p), p2=center(q), color=lc, show=True)
         else:
             dpg.configure_item(f"ln{n}", show=False)
 
@@ -571,12 +608,12 @@ with dpg.window(label="Controls", tag="ctrl", pos=(800, 556), width=620, height=
                 dpg.add_button(label="Pause", tag="pause_btn", width=90, callback=toggle_pause)
                 dpg.add_button(label="Scatter again", width=130, callback=reset)
         with dpg.child_window(width=-1, height=215, border=True):
-            dpg.add_text("Event log", color=(140, 170, 230))
+            dpg.add_text("EVENT LOG", color=(255, 255, 255))
             dpg.add_text("", tag="log", wrap=290)
 
 with dpg.window(label="Status", tag="status", pos=(1232, 50), width=190, height=250,
                 no_close=True, no_collapse=True, no_move=True, no_resize=True):
-    dpg.add_text("", tag="st_state", color=(140, 170, 230))
+    dpg.add_text("", tag="st_state", color=(255, 255, 255))
     dpg.add_text("", tag="st_groups")
     dpg.add_text("", tag="st_board", color=GREEN)
     dpg.add_text("", tag="st_left", color=(160, 166, 180))
